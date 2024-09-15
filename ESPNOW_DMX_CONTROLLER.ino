@@ -10,9 +10,9 @@
 #include <esp_now.h>  // https://randomnerdtutorials.com/esp-now-esp32-arduino-ide/
 #include <WiFi.h>
 #include <esp_dmx.h>  // https://github.com/someweisguy/esp_dmx
-#include <debounce.h>
+#include <debounce.h> // https://github.com/kimballa/button-debounce
 
-// GPIO PINS
+// GPIO PINS (built-in)
 const int buttonPin = 0;
 const int ledPin = 13;
 
@@ -31,26 +31,27 @@ dmx_port_t dmxPort = 1;
 // DMX PACKET
 byte data[DMX_PACKET_SIZE];
 
-// DMX CHANNELS
+// DMX CHANNELS (Update accordingly to your fixtures)
 const int parChannels = 8;
 const int laserChannels = 9;
 const int fogmachineChannels = 2;
 const int dimmerChannels = 4;
-const int num_bytes_to_send = 30;  // Number of channels to be sent in each message + 1 for break message
+const int num_bytes_to_send = 30;  // Define number of channels to be sent in each message + 1 for break message
 
-// DMX START ADDRESSES
+// DMX START ADDRESSES (Update accordingly to your DMX design)
 const int par1StartAddress = 1;
 const int par2StartAddress = 9;
 const int fogmachineStartAddress = 17;
 const int laserStartAddress = 19;
-//const int dimmerStartAddress = 26;
+const int dimmerStartAddress = 26;
 const int strobe = 7;  // offset for strobe channel (channel 8), as per fixtures' specs
 
-// PRESETS AND CONTROL
+// PRESETS AND CONTROL (Update accordingly to your fixtures)
 // Par: dimmer, red, green, blue, white, ambar, uv, strobe
 uint8_t parPreset[parChannels] = { 0, 75, 0, 0, 255, 0, 127, 0 };
 uint8_t fadeStep = 0;
-//Laser: control, template, x, y, speed, segment speed, zoom, colour, segment colour
+//Laser: use this section to define your own presets as data arrays
+// In my case, the laser channels corresponded to: control, template, x, y, speed, segment speed, zoom, colour, segment colour
 uint8_t laserLine[laserChannels] = { 150, 45, 0, 0, 0, 0, 0, 255, 0 };
 uint8_t laserSlowLine[laserChannels] = { 150, 45, 0, 0, 255, 0, 0, 255, 0 };
 uint8_t laserTunnel[laserChannels] = { 150, 1, 0, 250, 0, 0, 0, 255, 0 };
@@ -76,7 +77,7 @@ const int nextScene = 10;
 const int previousScene = 20;
 
 // SCENE MANAGEMENT
-const int numScenes = 8;  // define
+const int numScenes = 8;  // define how many scenes you want to have
 uint8_t scene = 0;        // counter
 uint8_t lastScene;
 uint8_t sceneManagement = idle;
@@ -97,9 +98,10 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
   */
 }
 
-// BUTTON DEBOUNCING
+// BUTTON FUNCTIONS
+// Just in case the remote controller failed, I used the built-in button on the ESP32 board to mimic basic commands (next scene and last scene)
 bool useShort;
-// Short press button
+// Short press button: Manually moves to next scene
 static void shortPressHandler(uint8_t btnId, uint8_t btnState) {
   if (btnState == BTN_PRESSED) {
     useShort = true;
@@ -114,14 +116,12 @@ static void shortPressHandler(uint8_t btnId, uint8_t btnState) {
     }
   }
 }
-// Long press button
+// Long press button: Manually moves back to last scene
 static void longPressHandler(uint8_t btnId, uint8_t btnState) {
   if (btnState == BTN_PRESSED) {
     useShort = false;
     analogWrite(ledPin, 200);
-    // Send a message after it has been held down a long time.
   } else {
-    // btnState == BTN_OPEN.
     if (useShort == false) {
       Serial.println("Previous scene hitted manually");  // DEBUGGING
       manualManagement = previousScene;
@@ -130,36 +130,15 @@ static void longPressHandler(uint8_t btnId, uint8_t btnState) {
     }
   }
 }
-// Long press and release
-static void longPressAndReleaseHandler(uint8_t btnId, uint8_t btnState) {
-  if (btnState == BTN_PRESSED) {
-    useShort = false;
-    Serial.println("Fog machine manually armed.");
-    analogWrite(ledPin, 0);
-    data[fogmachineStartAddress] = 255;
-    data[fogmachineStartAddress + 1] = 255;
-    dmx_write(dmxPort, data, DMX_PACKET_SIZE);
-  } else {
-    // btnState == BTN_OPEN.
-    // Shown when the button is released, but only if held down 3s first.
-    Serial.println("Fog machine stopped.");
-    data[fogmachineStartAddress] = 0;
-    data[fogmachineStartAddress + 1] = 0;
-    dmx_write(dmxPort, data, DMX_PACKET_SIZE);
-  }
-}
 // Button definitions
 static Button shortBtn(0, shortPressHandler);
 static Button longBtn(1, longPressHandler);
-static Button longPressReleaseBtn(2, longPressAndReleaseHandler);
-
 
 void setup() {
   Serial.begin(115200);
   Serial.println("SparkFun DMX ESPNOW - Initializing...");
   pinMode(buttonPin, INPUT_PULLUP);
   longBtn.setPushDebounceInterval(1000);              // 1 second
-  longPressReleaseBtn.setPushDebounceInterval(3000);  // 3 seconds
   pinMode(ledPin, OUTPUT);
 
   // DMX SETUP
