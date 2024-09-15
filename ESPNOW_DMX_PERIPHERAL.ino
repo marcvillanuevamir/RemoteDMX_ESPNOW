@@ -13,7 +13,7 @@
 #include <Arduino.h>
 #include <esp_now.h>
 #include <WiFi.h>
-#include <debounce.h>
+#include <debounce.h>  // https://github.com/kimballa/button-debounce
 
 // for disabling brown out detection
 #include "soc/soc.h"
@@ -41,8 +41,8 @@ uint8_t lastSensorValue2;
 
 // ANALOG SMOOTHING
 const int numReadings = 10;
-int readings[numReadings];   // the readings from the analog input 1
-int readings2[numReadings];  // the readings from the analog input 2
+int readings[numReadings];   // the readings from the knob 1
+int readings2[numReadings];  // the readings from the knob 2
 int readIndex = 0;
 int total = 0;
 int readIndex2 = 0;
